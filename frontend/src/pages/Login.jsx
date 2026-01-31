@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { Heart, AlertCircle } from 'lucide-react';
 
@@ -26,14 +27,19 @@ const Login = () => {
 
     if (!email || !password) {
       setError('Please fill in all fields');
+      toast.error('Please fill in all fields');
       setLoading(false);
       return;
     }
 
+    const toastId = toast.loading('Signing in...');
     const result = await login(email, password);
     
     if (!result.success) {
+      toast.error(result.error || 'Login failed', { id: toastId });
       setError(result.error || 'Login failed. Please try again.');
+    } else {
+      toast.success('Login successful!', { id: toastId });
     }
     // Navigation handled in AuthContext based on role
     

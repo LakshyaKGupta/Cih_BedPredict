@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { 
   Calendar, 
   TrendingDown, 
@@ -49,6 +50,7 @@ const BestTimeToVisit = () => {
       setHospitals(data);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
+      toast.error('Failed to load hospitals');
       setError('Failed to load hospitals');
     }
   };
@@ -61,8 +63,10 @@ const BestTimeToVisit = () => {
       const data = await getPublicForecast(hospitalId);
       console.log('Forecast data received:', data);
       setForecast(data);
+      toast.success(`Loaded 7-day forecast for ${data.hospital_name}`);
     } catch (error) {
       console.error('Error fetching forecast:', error);
+      toast.error('Failed to load forecast data');
       setError('Failed to load forecast data');
     } finally {
       setLoading(false);

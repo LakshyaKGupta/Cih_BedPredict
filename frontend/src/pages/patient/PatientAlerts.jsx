@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { AlertTriangle, MapPin, Bed, ArrowRight, Info } from 'lucide-react';
 import { getPublicHospitals, getPublicAlerts } from '../../services/api';
 
@@ -24,6 +25,7 @@ const PatientAlerts = () => {
       setHospitals(data);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
+      toast.error('Failed to load hospitals');
     }
   };
 
@@ -32,9 +34,14 @@ const PatientAlerts = () => {
       setLoading(true);
       const data = await getPublicAlerts(hospitalId);
       setAlerts(data);
+      if (data.alerts && data.alerts.length > 0) {
+        toast.success(`Found ${data.alerts.length} alert${data.alerts.length > 1 ? 's' : ''}`);
+      } else {
+        toast.success('No alerts - Hospital has good availability!');
+      }
     } catch (error) {
       console.error('Error fetching alerts:', error);
-      alert('Failed to fetch alerts. Please try again.');
+      toast.error('Failed to fetch alerts. Please try again.');
     } finally {
       setLoading(false);
     }

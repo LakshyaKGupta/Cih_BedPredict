@@ -22,22 +22,28 @@ def generate_hospitals() -> List[Dict]:
     """Generate sample hospital data"""
     hospitals = [
         {
-            "hospital_name": "St. Mary's General Hospital",
-            "location": "New York, NY",
+            "hospital_name": "Apollo Hospitals",
+            "location": "Mumbai, Maharashtra",
             "total_beds": 250,
             "icu_beds": 30
         },
         {
-            "hospital_name": "City Medical Center",
-            "location": "Los Angeles, CA",
+            "hospital_name": "Fortis Healthcare",
+            "location": "Delhi, NCR",
             "total_beds": 180,
             "icu_beds": 25
         },
         {
-            "hospital_name": "Regional Health Institute",
-            "location": "Chicago, IL",
+            "hospital_name": "Max Super Speciality Hospital",
+            "location": "Bangalore, Karnataka",
             "total_beds": 320,
             "icu_beds": 40
+        },
+        {
+            "hospital_name": "AIIMS Hospital",
+            "location": "Hyderabad, Telangana",
+            "total_beds": 150,
+            "icu_beds": 20
         }
     ]
     return hospitals

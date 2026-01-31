@@ -5,9 +5,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Bed, Activity, AlertCircle, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Bed, Activity, AlertCircle, ChevronRight, ChevronLeft, Wifi } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getPublicHospitals, getPublicAvailability } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
+import { HospitalCardSkeleton } from '../../components/LoadingSkeleton';
 
 const PatientDashboard = () => {
   const [hospitals, setHospitals] = useState([]);
@@ -16,7 +18,35 @@ const PatientDashboard = () => {
   const [cityFilter, setCityFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [availabilities, setAvailabilities] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(6);
+  const [liveUpdateTime, setLiveUpdateTime] = useState(new Date());
   const navigate = useNavigate();
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hospitals.length > 0) {
+        refreshAvailabilities();
+        setLiveUpdateTime(new Date());
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [hospitals]);
+
+  const refreshAvailabilities = async () => {
+    const availData = { ...availabilities };
+    for (const hospital of hospitals) {
+      try {
+        const avail = await getPublicAvailability(hospital.id);
+        availData[hospital.id] = avail;
+      } catch (err) {
+        // Silently handle
+      }
+    }
+    setAvailabilities(availData);
+  };
 
   useEffect(() => {
     fetchHospitals();
@@ -28,6 +58,7 @@ const PatientDashboard = () => {
       const data = await getPublicHospitals();
       setHospitals(data);
       setFilteredHospitals(data);
+      toast.success(`Loaded ${data.length} hospitals`);
 
       // Fetch availability for each hospital
       const availData = {};
@@ -43,6 +74,7 @@ const PatientDashboard = () => {
       setAvailabilities(availData);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
+      toast.error('Failed to load hospitals');
     } finally {
       setLoading(false);
     }
@@ -63,7 +95,16 @@ const PatientDashboard = () => {
     }
 
     setFilteredHospitals(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
   }, [searchTerm, cityFilter, hospitals]);
+
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentHospitals = filteredHospitals.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredHospitals.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   const cities = [...new Set(hospitals.map(h => h.location))];
 
@@ -89,8 +130,26 @@ const PatientDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Find Hospitals</h1>
+          <p className="text-gray-600 mt-2">
+            Search for hospitals and check real-time bed availability
+          </p>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+            <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <HospitalCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -139,15 +198,25 @@ const PatientDashboard = () => {
         <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
           <p className="text-sm text-gray-700">
             Found <span className="font-bold text-blue-600">{filteredHospitals.length}</span> hospital{filteredHospitals.length !== 1 ? 's' : ''}
+            {filteredHospitals.length > itemsPerPage && (
+              <span className="text-gray-500"> • Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredHospitals.length)}</span>
+            )}
           </p>
-          <span className="text-xs text-gray-500">Updated in real-time</span>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <Wifi className="w-3 h-3 animate-pulse" />
+              Live Updates
+            </span>
+            <span className="text-xs text-gray-500">{liveUpdateTime.toLocaleTimeString()}</span>
+          </div>
         </div>
       )}
 
       {/* Hospital Cards */}
-      {filteredHospitals.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredHospitals.map((hospital) => {
+      {currentHospitals.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentHospitals.map((hospital) => {
           const avail = availabilities[hospital.id];
           
           return (
@@ -250,6 +319,68 @@ const PatientDashboard = () => {
           );
         })}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`p-2 rounded-lg border ${
+                currentPage === 1
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+              }`}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex gap-1">
+              {[...Array(totalPages)].map((_, index) => {
+                const pageNumber = index + 1;
+                // Show first, last, current, and adjacent pages
+                if (
+                  pageNumber === 1 ||
+                  pageNumber === totalPages ||
+                  (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNumber}
+                      onClick={() => paginate(pageNumber)}
+                      className={`px-4 py-2 rounded-lg border font-medium ${
+                        currentPage === pageNumber
+                          ? 'bg-sky-600 text-white border-sky-600'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                } else if (
+                  pageNumber === currentPage - 2 ||
+                  pageNumber === currentPage + 2
+                ) {
+                  return <span key={pageNumber} className="px-2 py-2 text-gray-400">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`p-2 rounded-lg border ${
+                currentPage === totalPages
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+              }`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+      </>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 text-center py-16 px-6">
           <div className="max-w-md mx-auto">

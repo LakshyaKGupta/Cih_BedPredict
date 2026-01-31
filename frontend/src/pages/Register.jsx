@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth, USER_ROLES } from '../context/AuthContext';
 import { Heart, AlertCircle, Building2, User } from 'lucide-react';
 import { getPublicHospitals } from '../services/api';
@@ -61,28 +62,33 @@ const Register = () => {
     // Validation
     if (!formData.name || !formData.email || !formData.password) {
       setError('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       setLoading(false);
       return;
     }
 
     if (formData.role === USER_ROLES.HOSPITAL_ADMIN && !formData.hospitalId) {
       setError('Hospital admins must select a hospital');
+      toast.error('Hospital admins must select a hospital');
       setLoading(false);
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      toast.error('Passwords do not match');
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
+      toast.error('Password must be at least 6 characters');
       setLoading(false);
       return;
     }
 
+    const toastId = toast.loading('Creating account...');
     const result = await register(
       formData.name,
       formData.email,
@@ -92,7 +98,10 @@ const Register = () => {
     );
     
     if (!result.success) {
+      toast.error(result.error || 'Registration failed', { id: toastId });
       setError(result.error || 'Registration failed. Please try again.');
+    } else {
+      toast.success('Account created successfully!', { id: toastId });
     }
     // Navigation handled in AuthContext based on role
     

@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, USER_ROLES } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
@@ -29,6 +30,32 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+              fontSize: '14px',
+              borderRadius: '8px',
+            },
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              duration: 4000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />

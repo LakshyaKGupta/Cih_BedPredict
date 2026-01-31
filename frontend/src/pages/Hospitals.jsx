@@ -117,6 +117,11 @@ const Hospitals = () => {
 
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('Please login to update hospitals');
+      }
+      
       const hospitalData = {
         hospital_name: formData.hospital_name.trim(),
         location: formData.location.trim(),
@@ -139,6 +144,26 @@ const Hospitals = () => {
       }
       
       toast.success('✅ Hospital updated successfully!', { id: updateToast });
+      
+      // Regenerate predictions for updated hospital
+      try {
+        const predictionToast = toast.loading('Regenerating predictions...');
+        const predResponse = await fetch(`http://localhost:8000/api/predict/${selectedHospital.id}?days=7`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (predResponse.ok) {
+          toast.success('✅ Predictions updated!', { id: predictionToast });
+        } else {
+          toast.dismiss(predictionToast);
+        }
+      } catch (predError) {
+        console.error('Failed to regenerate predictions:', predError);
+      }
+      
       setFormData({
         hospital_name: '',
         location: '',

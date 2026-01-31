@@ -19,9 +19,6 @@ from app.routers import hospitals, ehr, predictions, auth, public
 from app.models.hospital import Hospital, EHRRecord
 from app.models.user import User
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Hospital Bed Occupancy Prediction API",
@@ -30,6 +27,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Note: Database tables should be created manually or via migration scripts
+# To initialize: run `python -c "from app.database import engine, Base; from app.models import *; Base.metadata.create_all(bind=engine)"`
 
 # Configure CORS for frontend communication
 # In production, replace "*" with specific frontend URLs

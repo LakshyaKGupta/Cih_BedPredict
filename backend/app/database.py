@@ -30,8 +30,12 @@ engine = create_engine(
     DATABASE_URL,
     echo=False,  # Set to True for debugging SQL queries
     pool_pre_ping=True,  # Enable connection health checks
-    pool_size=10,  # Connection pool size
-    max_overflow=20  # Max connections beyond pool_size
+    pool_size=5,  # Connection pool size (reduced for faster startup)
+    max_overflow=10,  # Max connections beyond pool_size
+    connect_args={
+        "connect_timeout": 5,  # 5 second timeout
+        "options": "-c statement_timeout=10000"  # 10 second query timeout
+    }
 )
 
 # Create session factory

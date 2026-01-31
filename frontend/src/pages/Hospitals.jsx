@@ -15,6 +15,7 @@ const Hospitals = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedHospital, setSelectedHospital] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAPIModal, setShowAPIModal] = useState(false);
@@ -75,8 +76,96 @@ const Hospitals = () => {
   };
 
   const handleEdit = (hospital) => {
-    alert(`Edit functionality for ${hospital.hospital_name} - Coming soon!`);
-    // TODO: Implement edit modal
+    setSelectedHospital(hospital);
+    setFormData({
+      hospital_name: hospital.hospital_name,
+      location: hospital.location,
+      total_beds: hospital.total_beds.toString(),
+      icu_beds: hospital.icu_beds.toString()
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateHospital = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    // Validation
+    if (!formData.hospital_name.trim()) {
+      setFormError('Hospital name is required');
+      return;
+    }
+    if (!formData.location.trim()) {
+      setFormError('Location is required');
+      return;
+    }
+    if (!formData.total_beds || formData.total_beds <= 0) {
+      setFormError('Total beds must be greater than 0');
+      return;
+    }
+    if (!formData.icu_beds || formData.icu_beds < 0) {
+      setFormError('ICU beds must be 0 or greater');
+      return;
+    }
+    if (parseInt(formData.icu_beds) > parseInt(formData.total_beds)) {
+      setFormError('ICU beds cannot exceed total beds');
+      return;
+    }
+
+    setSaving(true);
+    const updateToast = toast.loading(`Updating ${selectedHospital.hospital_name}...`);
+
+    try {
+      const token = localStorage.getItem('token');
+      const hospitalData = {
+        hospital_name: formData.hospital_name.trim(),
+        location: formData.location.trim(),
+        total_beds: parseInt(formData.total_beds),
+        icu_beds: parseInt(formData.icu_beds)
+      };
+
+      const response = await fetch(`http://localhost:8000/api/hospitals/${selectedHospital.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(hospitalData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update hospital');
+      }
+      
+      toast.success('✅ Hospital updated successfully!', { id: updateToast });
+      setFormData({
+        hospital_name: '',
+        location: '',
+        total_beds: '',
+        icu_beds: ''
+      });
+      setShowEditModal(false);
+      await loadHospitals();
+    } catch (error) {
+      console.error('Failed to update hospital:', error);
+      toast.error(error.message || 'Failed to update hospital', { id: updateToast });
+      setFormError(error.message || 'Failed to update hospital. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setFormData({
+      hospital_name: '',
+      location: '',
+      total_beds: '',
+      icu_beds: ''
+    });
+    setFormError('');
+    setSelectedHospital(null);
   };
 
   const handleConfigureAPI = (hospital) => {
@@ -1009,6 +1098,152 @@ const Hospitals = () => {
                     <>
                       <Wifi className="w-5 h-5" />
                       Save Configuration
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Hospital Modal */}
+      {showEditModal && selectedHospital && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <Edit2 className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Edit Hospital</h2>
+                    <p className="text-sm text-gray-600">{selectedHospital.hospital_name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeEditModal}
+                  className="p-2 hover:bg-white rounded-lg transition-colors"
+                  disabled={saving}
+                >
+                  <X className="w-6 h-6 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - Form */}
+            <form onSubmit={handleUpdateHospital} className="p-6 space-y-6">
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-700">{formError}</p>
+                </div>
+              )}
+
+              {/* Hospital Name */}
+              <div>
+                <label htmlFor="edit_hospital_name" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Hospital Name *
+                </label>
+                <input
+                  type="text"
+                  id="edit_hospital_name"
+                  value={formData.hospital_name}
+                  onChange={(e) => handleFormChange('hospital_name', e.target.value)}
+                  placeholder="e.g., City General Hospital"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  disabled={saving}
+                  required
+                />
+              </div>
+
+              {/* Location */}
+              <div>
+                <label htmlFor="edit_location" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Location *
+                </label>
+                <input
+                  type="text"
+                  id="edit_location"
+                  value={formData.location}
+                  onChange={(e) => handleFormChange('location', e.target.value)}
+                  placeholder="e.g., Mumbai, Maharashtra"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  disabled={saving}
+                  required
+                />
+              </div>
+
+              {/* Bed Capacity Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Total Beds */}
+                <div>
+                  <label htmlFor="edit_total_beds" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Total Beds *
+                  </label>
+                  <div className="relative">
+                    <Bed className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="number"
+                      id="edit_total_beds"
+                      value={formData.total_beds}
+                      onChange={(e) => handleFormChange('total_beds', e.target.value)}
+                      placeholder="0"
+                      min="1"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      disabled={saving}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* ICU Beds */}
+                <div>
+                  <label htmlFor="edit_icu_beds" className="block text-sm font-semibold text-gray-700 mb-2">
+                    ICU Beds *
+                  </label>
+                  <div className="relative">
+                    <Heart className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="number"
+                      id="edit_icu_beds"
+                      value={formData.icu_beds}
+                      onChange={(e) => handleFormChange('icu_beds', e.target.value)}
+                      placeholder="0"
+                      min="0"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      disabled={saving}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Edit2 className="w-5 h-5" />
+                      Update Hospital
                     </>
                   )}
                 </button>

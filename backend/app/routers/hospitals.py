@@ -111,6 +111,56 @@ async def get_hospital(
     return hospital
 
 
+@router.put("/hospitals/{hospital_id}", response_model=HospitalResponse)
+async def update_hospital(
+    hospital_id: int,
+    hospital_update: HospitalCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hospital_admin)
+):
+    """
+    Update hospital information (Admin only)
+    
+    Args:
+        hospital_id: Hospital ID to update
+        hospital_update: Updated hospital data
+        db: Database session
+        current_user: Authenticated hospital admin
+        
+    Returns:
+        Updated hospital details
+        
+    Raises:
+        404: Hospital not found
+        400: Validation error
+    """
+    hospital = db.query(Hospital).filter(Hospital.id == hospital_id).first()
+    
+    if not hospital:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Hospital with ID {hospital_id} not found"
+        )
+    
+    # Validate ICU beds don't exceed total beds
+    if hospital_update.icu_beds > hospital_update.total_beds:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ICU beds cannot exceed total beds"
+        )
+    
+    # Update hospital fields
+    hospital.hospital_name = hospital_update.hospital_name
+    hospital.location = hospital_update.location
+    hospital.total_beds = hospital_update.total_beds
+    hospital.icu_beds = hospital_update.icu_beds
+    
+    db.commit()
+    db.refresh(hospital)
+    
+    return hospital
+
+
 @router.put("/hospitals/{hospital_id}/api-config", response_model=HospitalResponse)
 async def configure_hospital_api(
     hospital_id: int,

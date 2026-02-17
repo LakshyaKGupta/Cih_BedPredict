@@ -20,6 +20,20 @@ import {
 } from 'recharts';
 
 const OccupancyChart = ({ historicalData, predictions, totalBeds }) => {
+  // Handle undefined data
+  if (!historicalData || !predictions) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          Bed Occupancy Trend & Predictions
+        </h3>
+        <div className="flex items-center justify-center h-64 text-gray-500">
+          No data available
+        </div>
+      </div>
+    );
+  }
+
   // Combine historical and prediction data
   const combinedData = [
     ...historicalData.map(item => ({

@@ -38,8 +38,8 @@ class Hospital(Base):
     # Relationship to EHR records
     ehr_records = relationship("EHRRecord", back_populates="hospital", cascade="all, delete-orphan")
     
-    # Relationship to users (hospital admins)
-    users = relationship("User", back_populates="hospital")
+    # Relationship to users (hospital admins) - commented out to fix circular import
+    # users = relationship("User", back_populates="hospital")
     
     def __repr__(self):
         return f"<Hospital {self.hospital_name} - {self.location}>"

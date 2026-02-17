@@ -57,6 +57,14 @@ const Predictions = () => {
     return 'text-green-600 bg-green-50 border-green-200';
   };
 
+  const predictionValues = (predictions?.predictions || [])
+    .map((prediction) => Number(prediction?.predicted_occupancy))
+    .filter((value) => Number.isFinite(value));
+  const peakForecast = predictionValues.length > 0 ? Math.max(...predictionValues) : null;
+  const averageForecast = predictionValues.length > 0
+    ? Math.round(predictionValues.reduce((sum, value) => sum + value, 0) / predictionValues.length)
+    : null;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -124,7 +132,7 @@ const Predictions = () => {
                 <div>
                   <div className="text-sm font-semibold text-gray-600">Peak Forecast</div>
                   <div className="text-3xl font-bold text-gray-900">
-                    {Math.max(...(predictions.predictions || []).map(p => Math.round(p.predicted_occupancy)))}
+                    {peakForecast !== null ? Math.round(peakForecast) : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -139,7 +147,7 @@ const Predictions = () => {
                 <div>
                   <div className="text-sm font-semibold text-gray-600">Avg Forecast</div>
                   <div className="text-3xl font-bold text-gray-900">
-                    {Math.round((predictions.predictions || []).reduce((sum, p) => sum + p.predicted_occupancy, 0) / (predictions.predictions || []).length)}
+                    {averageForecast ?? 'N/A'}
                   </div>
                 </div>
               </div>

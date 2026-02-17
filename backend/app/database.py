@@ -58,6 +58,8 @@ def init_db():
 
         # Create tables
         Base.metadata.create_all(bind=engine)
+    
+    return engine
 
 
 def get_db():

@@ -29,8 +29,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440
 if SECRET_KEY == "dev-secret-key-change-in-production":
     print("⚠️  WARNING: Using default SECRET_KEY! Set SECRET_KEY in .env for production!")
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - use bcrypt directly for compatibility
+import bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 # HTTP Bearer token security
 security = HTTPBearer()
@@ -38,12 +39,27 @@ security = HTTPBearer()
 
 def hash_password(password: str) -> str:
     """Hash a password"""
+    # Truncate password to 72 characters max (bcrypt limitation)
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # Use bcrypt directly for compatibility
+        password_bytes = plain_password.encode('utf-8')
+        hash_bytes = hashed_password.encode('utf-8')
+        
+        # Truncate password to 72 characters max (bcrypt limitation)
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+            
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+    except Exception as e:
+        print(f"Password verification error: {e}")
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

@@ -13,8 +13,6 @@ import {
   TrendingUp, 
   Activity,
   Star,
-  ChevronLeft,
-  ChevronRight,
   AlertTriangle,
   Bed
 } from 'lucide-react';
@@ -35,7 +33,8 @@ const BestTimeToVisit = () => {
   useEffect(() => {
     const hospitalId = searchParams.get('hospital');
     if (hospitalId && hospitals.length > 0) {
-      const hospital = hospitals.find(h => h.id === parseInt(hospitalId));
+      const parsedId = Number(hospitalId);
+      const hospital = hospitals.find(h => h.id === parsedId);
       if (hospital) {
         setSelectedHospital(hospital);
         fetchForecast(hospital.id);
@@ -48,10 +47,20 @@ const BestTimeToVisit = () => {
       const data = await getPublicHospitals();
       console.log('Hospitals loaded:', data);
       setHospitals(data);
+
+      // Auto-select first hospital if none selected in URL.
+      if (!searchParams.get('hospital') && data.length > 0) {
+        setSearchParams({ hospital: String(data[0].id) });
+      }
     } catch (error) {
       console.error('Error fetching hospitals:', error);
       toast.error('Failed to load hospitals');
       setError('Failed to load hospitals');
+      // Set demo data to prevent crashes
+      setHospitals([
+        { id: 1, hospital_name: 'Test Hospital', location: 'Test City', total_beds: 100, icu_beds: 20 },
+        { id: 2, hospital_name: 'Test Hospital', location: 'Test City', total_beds: 250, icu_beds: 50 }
+      ]);
     }
   };
 
@@ -63,11 +72,12 @@ const BestTimeToVisit = () => {
       const data = await getPublicForecast(hospitalId);
       console.log('Forecast data received:', data);
       setForecast(data);
-      toast.success(`Loaded 7-day forecast for ${data.hospital_name}`);
     } catch (error) {
       console.error('Error fetching forecast:', error);
-      toast.error('Failed to load forecast data');
-      setError('Failed to load forecast data');
+      const message = error.response?.data?.detail || 'Failed to load forecast data';
+      toast.error(message);
+      setError(message);
+      setForecast(null);
     } finally {
       setLoading(false);
     }
@@ -79,7 +89,6 @@ const BestTimeToVisit = () => {
       setSearchParams({ hospital: hospitalId });
       const hospital = hospitals.find(h => h.id === parseInt(hospitalId));
       setSelectedHospital(hospital);
-      fetchForecast(parseInt(hospitalId));
     } else {
       setSelectedHospital(null);
       setForecast(null);
@@ -207,7 +216,7 @@ const BestTimeToVisit = () => {
                   </p>
                   {(() => {
                     const utilization = (forecast.best_day_occupancy / forecast.total_beds) * 100;
-                    const risk = utilization >= 80 ? 'high' : utilization >= 60 ? 'medium' : 'low';
+                    const risk = utilization >= 85 ? 'high' : utilization >= 70 ? 'medium' : 'low';
                     return (
                       <div className="mt-3">
                         <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border ${getRiskColor(risk)}`}>
@@ -224,7 +233,7 @@ const BestTimeToVisit = () => {
 
           {/* Recommendation Box */}
           {(() => {
-            const highRiskDays = forecast.forecast.filter(day => day.utilization_percentage >= 85);
+            const highRiskDays = (forecast.forecast || []).filter(day => day.utilization_percentage >= 85);
             if (highRiskDays.length > 0) {
               return (
                 <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl shadow-sm border-2 border-yellow-200 p-6">
@@ -242,7 +251,7 @@ const BestTimeToVisit = () => {
                           <li>Visit on <span className="font-semibold text-green-700">{formatDate(forecast.best_day_to_visit)}</span> for best availability</li>
                           <li>Call ahead to confirm bed availability</li>
                           <li>Consider nearby hospitals with better availability</li>
-                          <li>Check the <a href="/patient/alerts?hospital={forecast.hospital_id}" className="text-sky-600 hover:underline font-medium">Alerts page</a> for alternative hospitals</li>
+                          <li>Check the <a href={`/patient/alerts?hospital=${forecast.hospital_id}`} className="text-sky-600 hover:underline font-medium">Alerts page</a> for alternative hospitals</li>
                         </ul>
                       </div>
                     </div>
@@ -259,102 +268,108 @@ const BestTimeToVisit = () => {
               <h3 className="text-xl font-bold text-gray-900">7-Day Forecast</h3>
               <div className="text-sm text-gray-500">Updated in real-time</div>
             </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {forecast.forecast.map((day, index) => {
-                const isBestDay = day.date === forecast.best_day_to_visit;
-                const isHighRisk = day.utilization_percentage >= 85;
-                const isMediumRisk = day.utilization_percentage >= 70 && day.utilization_percentage < 85;
-                
-                return (
-                  <div
-                    key={index}
-                    className={`relative p-5 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
-                      isBestDay
-                        ? 'bg-gradient-to-br from-sky-50 to-blue-50 border-sky-400 shadow-md'
-                        : isHighRisk
-                        ? 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300'
-                        : isMediumRisk
-                        ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-300'
-                        : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
-                    }`}
-                  >
-                    {/* Best Day Badge */}
-                    {isBestDay && (
-                      <div className="absolute -top-3 -right-3 bg-sky-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-white" />
-                        Best Day
-                      </div>
-                    )}
 
-                    {/* Date Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="text-lg font-bold text-gray-900 mb-1">
-                          {formatDate(day.date)}
+            {(forecast.forecast || []).length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+                Forecast is temporarily unavailable for this hospital because there is not enough recent EHR history yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {(forecast.forecast || []).map((day, index) => {
+                  const isBestDay = day.date === forecast.best_day_to_visit;
+                  const isHighRisk = day.utilization_percentage >= 85;
+                  const isMediumRisk = day.utilization_percentage >= 70 && day.utilization_percentage < 85;
+                  
+                  return (
+                    <div
+                      key={index}
+                      className={`relative p-5 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+                        isBestDay
+                          ? 'bg-gradient-to-br from-sky-50 to-blue-50 border-sky-400 shadow-md'
+                          : isHighRisk
+                          ? 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300'
+                          : isMediumRisk
+                          ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-300'
+                          : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
+                      }`}
+                    >
+                      {/* Best Day Badge */}
+                      {isBestDay && (
+                        <div className="absolute -top-3 -right-3 bg-sky-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-white" />
+                          Best Day
                         </div>
-                        <div className="text-sm text-gray-600 flex items-center gap-1">
-                          <Bed className="w-3 h-3" />
-                          <span>{day.predicted_available} beds available</span>
+                      )}
+
+                      {/* Date Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="text-lg font-bold text-gray-900 mb-1">
+                            {formatDate(day.date)}
+                          </div>
+                          <div className="text-sm text-gray-600 flex items-center gap-1">
+                            <Bed className="w-3 h-3" />
+                            <span>{day.predicted_available} beds available</span>
+                          </div>
+                        </div>
+                        
+                        {/* Risk Badge */}
+                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm ${getRiskColor(day.risk_level)}`}>
+                          {getRiskIcon(day.risk_level)}
+                          <span className="uppercase">{day.risk_level}</span>
                         </div>
                       </div>
-                      
-                      {/* Risk Badge */}
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm ${getRiskColor(day.risk_level)}`}>
-                        {getRiskIcon(day.risk_level)}
-                        <span className="uppercase">{day.risk_level}</span>
+
+                      {/* Occupancy Visualization */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 font-medium">Occupancy Rate</span>
+                          <span className="text-2xl font-bold text-gray-900">
+                            {day.utilization_percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                          <div
+                            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                              day.utilization_percentage >= 85
+                                ? 'bg-gradient-to-r from-red-500 to-red-600'
+                                : day.utilization_percentage >= 70
+                                ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                                : 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(day.utilization_percentage, 100)}%` }}
+                          />
+                        </div>
+
+                        {/* Occupancy Details */}
+                        <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-center">
+                            <div className="text-xs text-gray-500 mb-1">Occupied</div>
+                            <div className="text-sm font-bold text-gray-900">{day.predicted_occupancy}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-gray-500 mb-1">Available</div>
+                            <div className="text-sm font-bold text-green-600">{day.predicted_available}</div>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Warning Message */}
+                      {isHighRisk && (
+                        <div className="mt-3 pt-3 border-t border-red-200">
+                          <p className="text-xs text-red-700 font-medium flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            High occupancy - Long wait times expected
+                          </p>
+                        </div>
+                      )}
                     </div>
-
-                    {/* Occupancy Visualization */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600 font-medium">Occupancy Rate</span>
-                        <span className="text-2xl font-bold text-gray-900">
-                          {day.utilization_percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                        <div
-                          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
-                            day.utilization_percentage >= 85
-                              ? 'bg-gradient-to-r from-red-500 to-red-600'
-                              : day.utilization_percentage >= 70
-                              ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
-                              : 'bg-gradient-to-r from-green-500 to-emerald-500'
-                          }`}
-                          style={{ width: `${Math.min(day.utilization_percentage, 100)}%` }}
-                        />
-                      </div>
-
-                      {/* Occupancy Details */}
-                      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-200">
-                        <div className="text-center">
-                          <div className="text-xs text-gray-500 mb-1">Occupied</div>
-                          <div className="text-sm font-bold text-gray-900">{day.predicted_occupied}</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xs text-gray-500 mb-1">Available</div>
-                          <div className="text-sm font-bold text-green-600">{day.predicted_available}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Warning Message */}
-                    {isHighRisk && (
-                      <div className="mt-3 pt-3 border-t border-red-200">
-                        <p className="text-xs text-red-700 font-medium flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          High occupancy - Long wait times expected
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Legend */}
@@ -363,15 +378,15 @@ const BestTimeToVisit = () => {
             <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="text-gray-600"><span className="font-medium">Low:</span> &lt;60% occupancy</span>
+                <span className="text-gray-600"><span className="font-medium">Low:</span> &lt;70% occupancy</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span className="text-gray-600"><span className="font-medium">Medium:</span> 60-80% occupancy</span>
+                <span className="text-gray-600"><span className="font-medium">Medium:</span> 70-85% occupancy</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <span className="text-gray-600"><span className="font-medium">High:</span> &gt;80% occupancy</span>
+                <span className="text-gray-600"><span className="font-medium">High:</span> &gt;85% occupancy</span>
               </div>
             </div>
           </div>

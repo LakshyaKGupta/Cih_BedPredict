@@ -1,12 +1,12 @@
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
 /* postcss-loader configuration for Tailwind CSS */
 /* stylelint-disable at-rule-no-unknown */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 /* stylelint-enable at-rule-no-unknown */
-
-/* Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
 
 /* Custom map marker styles */
 .custom-marker div:hover {

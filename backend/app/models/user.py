@@ -35,5 +35,8 @@ class User(Base):
     # Hospital admins are linked to a specific hospital
     hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True)
     
-    # Relationship to hospital (for admins only)
-    hospital = relationship("Hospital", back_populates="users")
+    # Relationship to hospital (for admins only) - commented out to fix circular import
+    # hospital = relationship("Hospital", back_populates="users")
+
+    def __repr__(self):
+        return f"<User {self.email} - {self.role.value}>"

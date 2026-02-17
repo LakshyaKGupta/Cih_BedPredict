@@ -350,31 +350,86 @@ const Home = () => {
             <h2 className="text-4xl font-extrabold text-gray-900 mt-4 mb-6">
               Simple Process, Powerful Results
             </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Transform your hospital operations in four simple steps with our AI-powered platform
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-4 gap-6 items-stretch">
             {[
-              { num: '1', title: 'Connect EHR Data', description: 'Securely import admission, discharge, and occupancy records', icon: Database },
-              { num: '2', title: 'AI Analysis', description: 'Prophet ML analyzes patterns, trends, and seasonality', icon: Brain },
-              { num: '3', title: 'Get Predictions', description: 'Receive 7-day forecasts with confidence intervals', icon: TrendingUp },
-              { num: '4', title: 'Optimize Resources', description: 'Proactively manage staffing and bed allocation', icon: CheckCircle }
+              { 
+                num: '1', 
+                title: 'Connect EHR Data', 
+                description: 'Securely import admission, discharge, and occupancy records from your existing systems',
+                icon: Database,
+                features: ['HIPAA compliant', 'Auto-sync every 5 minutes', 'Supports all major EHR systems'],
+                color: 'from-blue-500 to-cyan-500'
+              },
+              { 
+                num: '2', 
+                title: 'AI Analysis', 
+                description: 'Prophet ML analyzes patterns, trends, and seasonality in your historical data',
+                icon: Brain,
+                features: ['Facebook Prophet algorithm', 'Seasonal pattern detection', 'Anomaly identification'],
+                color: 'from-purple-500 to-pink-500'
+              },
+              { 
+                num: '3', 
+                title: 'Get Predictions', 
+                description: 'Receive 7-day forecasts with 95% confidence intervals and risk assessments',
+                icon: TrendingUp,
+                features: ['7-day forecasts', '95% confidence intervals', 'Risk level indicators'],
+                color: 'from-green-500 to-emerald-500'
+              },
+              { 
+                num: '4', 
+                title: 'Optimize Resources', 
+                description: 'Proactively manage staffing, bed allocation, and patient flow with data-driven insights',
+                icon: CheckCircle,
+                features: ['Staff scheduling', 'Bed management', 'Patient flow optimization'],
+                color: 'from-orange-500 to-red-500'
+              }
             ].map((step, idx) => (
               <div key={idx} className="relative">
-                <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all border border-gray-100">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="w-12 h-12 bg-gradient-to-br from-sky-500 to-cyan-500 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                      {step.num}
+                <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all border border-gray-100 h-full flex flex-col">
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 bg-gradient-to-br ${step.color} rounded-xl flex items-center justify-center text-white font-bold text-lg`}>
+                        {step.num}
+                      </div>
+                      <step.icon className="w-8 h-8 text-sky-600" />
                     </div>
-                    <step.icon className="w-8 h-8 text-sky-600" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
-                  <p className="text-gray-600">{step.description}</p>
+                  <p className="text-gray-600 mb-4">{step.description}</p>
+                  
+                  {/* Features */}
+                  <div className="space-y-2">
+                    {step.features.map((feature, featureIdx) => (
+                      <div key={featureIdx} className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className={`w-1.5 h-1.5 bg-gradient-to-r ${step.color} rounded-full`}></div>
+                        {feature}
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {idx < 3 && (
-                  <ArrowRight className="hidden md:block absolute top-1/2 -right-8 transform -translate-y-1/2 w-6 h-6 text-sky-300" />
+                  <ArrowRight className="hidden md:block absolute top-1/2 -right-6 transform -translate-y-1/2 w-6 h-6 text-sky-300" />
                 )}
               </div>
             ))}
+          </div>
+          
+          {/* Interactive Demo Button */}
+          <div className="text-center mt-16">
+            <button
+              onClick={handleViewDemo}
+              className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-sky-600 to-cyan-600 text-white rounded-2xl font-bold hover:from-sky-700 hover:to-cyan-700 transition-all duration-300 shadow-xl hover:shadow-2xl"
+            >
+              <span>See It In Action</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </button>
+            <p className="text-sm text-gray-500 mt-3">Get a live demo with your hospital's data</p>
           </div>
         </div>
       </section>

@@ -90,3 +90,4 @@ class AlertsResponse(BaseModel):
     hospital_id: int
     hospital_name: str
     alerts: List[AvailabilityAlert]
+    alternate_hospitals: List[PublicHospitalInfo] = Field(default_factory=list)

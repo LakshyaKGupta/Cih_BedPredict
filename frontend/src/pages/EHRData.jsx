@@ -29,7 +29,7 @@ const EHRData = () => {
     if (selectedHospitalId) {
       loadRecords(selectedHospitalId);
     }
-  }, [selectedHospitalId]);
+  }, [selectedHospitalId, dateRange]); // Add dateRange dependency
 
   const loadHospitals = async () => {
     try {
@@ -47,7 +47,23 @@ const EHRData = () => {
     setLoading(true);
     try {
       const data = await getEHRRecords(hospitalId);
-      setRecords(data || []);
+      
+      // Filter records by date range
+      if (data && data.length > 0) {
+        const days = parseInt(dateRange);
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        
+        const filteredData = data.filter(record => {
+          const recordDate = new Date(record.date);
+          return recordDate >= cutoffDate;
+        });
+        
+        console.log(`Filtered ${data.length} records to ${filteredData.length} records for last ${days} days`);
+        setRecords(filteredData);
+      } else {
+        setRecords([]);
+      }
     } catch (error) {
       console.error('Failed to load EHR records:', error);
       setRecords([]);
@@ -103,15 +119,35 @@ const EHRData = () => {
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
-    if (file && file.type === 'text/csv') {
+    const isCsv = file && file.name.toLowerCase().endsWith('.csv');
+    if (isCsv) {
       setImportFile(file);
     } else {
       alert('Please select a valid CSV file');
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const templateHeaders = 'Date,Admissions,Discharges,Occupied Beds,ICU Occupied,Emergency Cases';
+    const templateRows = [
+      '2026-02-12,28,24,172,19,11',
+      '2026-02-13,30,26,176,20,12'
+    ];
+    const csvContent = [templateHeaders, ...templateRows].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ehr_import_template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   const parseCSV = (text) => {
-    const lines = text.split('\n').filter(line => line.trim());
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line);
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     
     const records = [];
@@ -321,7 +357,10 @@ const EHRData = () => {
             <Database className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-900 mb-2">No Records Found</h3>
             <p className="text-gray-600 mb-6">Start by importing EHR data for this hospital</p>
-            <button className="px-6 py-3 bg-sky-600 text-white rounded-xl font-semibold hover:bg-sky-700 transition-all inline-flex items-center gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-6 py-3 bg-sky-600 text-white rounded-xl font-semibold hover:bg-sky-700 transition-all inline-flex items-center gap-2"
+            >
               <Upload className="w-5 h-5" />
               Import Data
             </button>
@@ -455,7 +494,17 @@ const EHRData = () => {
 
               {/* CSV Format Info */}
               <div className="bg-gradient-to-br from-sky-50 to-cyan-50 rounded-xl p-4 border border-sky-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-2">CSV Format Requirements</h3>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h3 className="text-sm font-bold text-gray-900">CSV Format Requirements</h3>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="px-3 py-1.5 text-xs font-semibold bg-white border border-sky-300 text-sky-700 rounded-lg hover:bg-sky-100 transition-colors inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Template
+                  </button>
+                </div>
                 <p className="text-sm text-gray-700 mb-2">Your CSV file should have these columns:</p>
                 <div className="bg-white rounded-lg p-3 font-mono text-xs text-gray-800">
                   Date, Admissions, Discharges, Occupied Beds, ICU Occupied, Emergency Cases

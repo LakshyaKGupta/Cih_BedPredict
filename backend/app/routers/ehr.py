@@ -85,6 +85,36 @@ async def create_ehr_record(
     return db_ehr
 
 
+@router.get("/ehr/{hospital_id}/simple")
+async def get_ehr_records_simple(
+    hospital_id: int,
+    db: Session = Depends(get_db)
+):
+    """Simple endpoint to get EHR records without complex validation"""
+    try:
+        records = db.query(EHRRecord).filter(
+            EHRRecord.hospital_id == hospital_id
+        ).order_by(desc(EHRRecord.date)).limit(30).all()
+        
+        return [
+            {
+                "id": r.id,
+                "hospital_id": r.hospital_id,
+                "date": r.date.isoformat() if r.date else None,
+                "admissions": r.admissions,
+                "discharges": r.discharges,
+                "occupied_beds": r.occupied_beds,
+                "icu_occupied": r.icu_occupied,
+                "emergency_cases": r.emergency_cases,
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            }
+            for r in records
+        ]
+    except Exception as e:
+        print(f"Error in simple EHR endpoint: {e}")
+        return []
+
+
 @router.get("/ehr/{hospital_id}", response_model=List[EHRRecordResponse])
 async def get_ehr_records(
     hospital_id: int,

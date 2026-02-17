@@ -42,7 +42,19 @@ const PatientDashboard = () => {
         const avail = await getPublicAvailability(hospital.id);
         availData[hospital.id] = avail;
       } catch (err) {
-        // Silently handle
+        console.error(`Error fetching availability for hospital ${hospital.id}:`, err);
+        // Set default availability to prevent crashes
+        availData[hospital.id] = {
+          hospital_id: hospital.id,
+          hospital_name: hospital.hospital_name,
+          location: hospital.location,
+          total_beds: hospital.total_beds || 100,
+          current_occupied: 0,
+          current_available: hospital.total_beds || 100,
+          utilization_percentage: 0,
+          status: 'unknown',
+          last_updated: new Date().toISOString()
+        };
       }
     }
     setAvailabilities(availData);
@@ -67,14 +79,28 @@ const PatientDashboard = () => {
           const avail = await getPublicAvailability(hospital.id);
           availData[hospital.id] = avail;
         } catch (err) {
-          // Silently handle - some hospitals may not have data yet
-          // This is expected and not an error
+          console.error(`Error fetching availability for hospital ${hospital.id}:`, err);
+          // Set default availability to prevent crashes
+          availData[hospital.id] = {
+            hospital_id: hospital.id,
+            hospital_name: hospital.hospital_name,
+            location: hospital.location,
+            total_beds: hospital.total_beds || 100,
+            current_occupied: 0,
+            current_available: hospital.total_beds || 100,
+            utilization_percentage: 0,
+            status: 'unknown',
+            last_updated: new Date().toISOString()
+          };
         }
       }
       setAvailabilities(availData);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
       toast.error('Failed to load hospitals');
+      // Set empty array to prevent crashes
+      setHospitals([]);
+      setFilteredHospitals([]);
     } finally {
       setLoading(false);
     }

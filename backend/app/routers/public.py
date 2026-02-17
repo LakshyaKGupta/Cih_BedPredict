@@ -12,8 +12,6 @@ from typing import List, Optional
 from datetime import date, timedelta
 from app.database import get_db
 from app.models.hospital import Hospital, EHRRecord
-from app.models.user import User
-from app.services.auth_service import get_current_user
 from app.services.prediction_service import PredictionService
 from app.schemas.public import (
     PublicHospitalInfo,
@@ -28,6 +26,99 @@ from app.schemas.public import (
 
 router = APIRouter(prefix="/public", tags=["Public Patient API"])
 prediction_service = PredictionService()
+
+
+def _clamp_occupancy(occupied_beds: int, total_beds: int) -> int:
+    """Clamp occupancy to a valid range for patient-facing outputs."""
+    if total_beds <= 0:
+        return max(0, int(occupied_beds or 0))
+    return max(0, min(int(occupied_beds or 0), total_beds))
+
+
+def _calculate_utilization(occupied_beds: int, total_beds: int) -> float:
+    if total_beds <= 0:
+        return 0.0
+    return round((occupied_beds / total_beds) * 100, 1)
+
+
+def _risk_from_utilization(utilization: float) -> str:
+    if utilization >= 85:
+        return "high"
+    if utilization >= 70:
+        return "medium"
+    return "low"
+
+
+def _build_fallback_forecast(
+    ehr_records: List[EHRRecord],
+    total_beds: int,
+    days: int
+) -> List[dict]:
+    """
+    Lightweight fallback forecast used when Prophet cannot run
+    (for example, insufficient historical points).
+    """
+    if not ehr_records:
+        return []
+
+    normalized = [
+        _clamp_occupancy(record.occupied_beds, total_beds)
+        for record in ehr_records
+    ]
+
+    # Use recent deltas to capture direction while keeping projections stable.
+    recent = normalized[-8:]
+    deltas = [recent[i] - recent[i - 1] for i in range(1, len(recent))]
+    avg_delta = (sum(deltas) / len(deltas)) if deltas else 0
+    avg_delta = max(-5.0, min(5.0, avg_delta))
+
+    last_day = ehr_records[-1].date
+    last_occupancy = normalized[-1]
+    predictions = []
+
+    for day_offset in range(1, days + 1):
+        projected = _clamp_occupancy(
+            round(last_occupancy + (avg_delta * day_offset)),
+            total_beds
+        )
+        predictions.append({
+            "date": last_day + timedelta(days=day_offset),
+            "predicted_occupancy": projected
+        })
+
+    return predictions
+
+
+def _format_forecast_response(
+    predictions: List[dict],
+    total_beds: int
+) -> tuple[List[DayForecast], Optional[str], Optional[int]]:
+    forecast_days: List[DayForecast] = []
+    min_occupancy = float("inf")
+    best_day: Optional[str] = None
+
+    for pred in predictions:
+        predicted_occ = _clamp_occupancy(pred.get("predicted_occupancy", 0), total_beds)
+        available = max(0, total_beds - predicted_occ)
+        utilization = _calculate_utilization(predicted_occ, total_beds)
+        risk = _risk_from_utilization(utilization)
+        pred_date = pred.get("date")
+        date_str = pred_date.isoformat() if hasattr(pred_date, "isoformat") else str(pred_date)
+
+        if predicted_occ < min_occupancy:
+            min_occupancy = predicted_occ
+            best_day = date_str
+
+        forecast_days.append(DayForecast(
+            date=date_str,
+            predicted_occupancy=predicted_occ,
+            predicted_available=available,
+            utilization_percentage=utilization,
+            risk_level=risk
+        ))
+
+    best_day_occupancy = int(min_occupancy) if min_occupancy != float("inf") else None
+    return forecast_days, best_day, best_day_occupancy
 
 
 @router.get("/hospitals", response_model=List[PublicHospitalInfo])
@@ -92,10 +183,10 @@ async def get_hospital_availability(
             last_updated=None
         )
     
-    current_occupied = latest_record.occupied_beds
-    current_available = hospital.total_beds - current_occupied
-    utilization = (current_occupied / hospital.total_beds) * 100
-    
+    current_occupied = _clamp_occupancy(latest_record.occupied_beds, hospital.total_beds)
+    current_available = max(0, hospital.total_beds - current_occupied)
+    utilization = _calculate_utilization(current_occupied, hospital.total_beds)
+
     # Determine status
     if utilization >= 85:
         status_str = "high"
@@ -111,7 +202,7 @@ async def get_hospital_availability(
         total_beds=hospital.total_beds,
         current_occupied=current_occupied,
         current_available=current_available,
-        utilization_percentage=round(utilization, 1),
+        utilization_percentage=utilization,
         status=status_str,
         last_updated=latest_record.date.isoformat()
     )
@@ -141,54 +232,33 @@ async def get_hospital_forecast(
         EHRRecord.hospital_id == hospital_id
     ).order_by(EHRRecord.date).all()
     
-    if len(ehr_records) < 14:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Insufficient data for prediction (minimum 14 days required)"
+    if len(ehr_records) == 0:
+        return HospitalForecast(
+            hospital_id=hospital.id,
+            hospital_name=hospital.hospital_name,
+            location=hospital.location,
+            total_beds=hospital.total_beds,
+            forecast=[],
+            best_day_to_visit=None,
+            best_day_occupancy=None
         )
-    
-    # Generate predictions
-    try:
-        predictions, model_info = prediction_service.predict_occupancy(
-            ehr_records=ehr_records,
-            days=days
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
-        )
-    
-    # Format forecast with risk levels
-    forecast_days = []
-    min_occupancy = float('inf')
-    best_day = None
-    
-    for pred in predictions:
-        predicted_occ = int(pred['predicted_occupancy'])
-        available = hospital.total_beds - predicted_occ
-        utilization = (predicted_occ / hospital.total_beds) * 100
-        
-        # Determine risk level
-        if utilization >= 85:
-            risk = "high"
-        elif utilization >= 70:
-            risk = "medium"
-        else:
-            risk = "low"
-        
-        # Track best day
-        if predicted_occ < min_occupancy:
-            min_occupancy = predicted_occ
-            best_day = pred['date']
-        
-        forecast_days.append(DayForecast(
-            date=pred['date'].isoformat() if hasattr(pred['date'], 'isoformat') else str(pred['date']),
-            predicted_occupancy=predicted_occ,
-            predicted_available=available,
-            utilization_percentage=round(utilization, 1),
-            risk_level=risk
-        ))
+
+    # Generate predictions. Use Prophet when possible, otherwise fallback.
+    if len(ehr_records) >= 14:
+        try:
+            predictions, _ = prediction_service.predict_occupancy(
+                ehr_records=ehr_records,
+                days=days
+            )
+        except Exception:
+            predictions = _build_fallback_forecast(ehr_records, hospital.total_beds, days)
+    else:
+        predictions = _build_fallback_forecast(ehr_records, hospital.total_beds, days)
+
+    forecast_days, best_day, best_day_occupancy = _format_forecast_response(
+        predictions=predictions,
+        total_beds=hospital.total_beds
+    )
     
     return HospitalForecast(
         hospital_id=hospital.id,
@@ -196,8 +266,8 @@ async def get_hospital_forecast(
         location=hospital.location,
         total_beds=hospital.total_beds,
         forecast=forecast_days,
-        best_day_to_visit=best_day.isoformat() if best_day and hasattr(best_day, 'isoformat') else str(best_day) if best_day else None,
-        best_day_occupancy=int(min_occupancy) if min_occupancy != float('inf') else None
+        best_day_to_visit=best_day,
+        best_day_occupancy=best_day_occupancy
     )
 
 
@@ -235,9 +305,9 @@ async def compare_hospitals(
         if not latest_record:
             continue
         
-        current_occ = latest_record.occupied_beds
-        current_avail = hospital.total_beds - current_occ
-        utilization = (current_occ / hospital.total_beds) * 100
+        current_occ = _clamp_occupancy(latest_record.occupied_beds, hospital.total_beds)
+        current_avail = max(0, hospital.total_beds - current_occ)
+        utilization = _calculate_utilization(current_occ, hospital.total_beds)
         
         # Get 7-day prediction average
         ehr_records = db.query(EHRRecord).filter(
@@ -245,7 +315,7 @@ async def compare_hospitals(
         ).order_by(EHRRecord.date).all()
         
         avg_predicted = current_occ  # Default to current if prediction fails
-        
+
         if len(ehr_records) >= 14:
             try:
                 predictions, _ = prediction_service.predict_occupancy(
@@ -253,8 +323,14 @@ async def compare_hospitals(
                     days=7
                 )
                 avg_predicted = sum(p['predicted_occupancy'] for p in predictions) / len(predictions)
-            except:
-                pass
+            except Exception:
+                fallback = _build_fallback_forecast(ehr_records, hospital.total_beds, 7)
+                if fallback:
+                    avg_predicted = sum(p['predicted_occupancy'] for p in fallback) / len(fallback)
+        else:
+            fallback = _build_fallback_forecast(ehr_records, hospital.total_beds, 7)
+            if fallback:
+                avg_predicted = sum(p['predicted_occupancy'] for p in fallback) / len(fallback)
         
         # Calculate recommendation score (0-100, higher is better)
         # Lower occupancy = higher score
@@ -276,7 +352,7 @@ async def compare_hospitals(
             location=hospital.location,
             current_occupancy=current_occ,
             current_available=current_avail,
-            utilization_percentage=round(utilization, 1),
+            utilization_percentage=utilization,
             avg_predicted_occupancy_7_days=round(avg_predicted, 1),
             recommendation_score=round(recommendation_score, 1),
             risk_level=risk
@@ -352,39 +428,40 @@ async def get_hospital_alerts(
         EHRRecord.hospital_id == hospital_id
     ).order_by(EHRRecord.date).all()
     
+    predictions = []
     if len(ehr_records) >= 14:
         try:
             predictions, _ = prediction_service.predict_occupancy(
                 ehr_records=ehr_records,
                 days=7
             )
-            
-            # Check for high occupancy days
-            for pred in predictions:
-                predicted_occ = pred['predicted_occupancy']
-                utilization = (predicted_occ / hospital.total_beds) * 100
-                date_str = pred['date'].isoformat() if hasattr(pred['date'], 'isoformat') else str(pred['date'])
-                
-                # Create alerts for medium and high risk levels
-                if utilization >= 85:
-                    has_high_risk = True
-                    alerts.append(AvailabilityAlert(
-                        alert_type="high_occupancy",
-                        message=f"Critical occupancy expected on {date_str} ({utilization:.0f}%). Long wait times likely. Consider visiting an alternate hospital or a different day.",
-                        severity="critical",
-                        date=date_str
-                    ))
-                elif utilization >= 70:
-                    alerts.append(AvailabilityAlert(
-                        alert_type="capacity_warning",
-                        message=f"Moderate occupancy expected on {date_str} ({utilization:.0f}%). May experience longer wait times.",
-                        severity="warning",
-                        date=date_str
-                    ))
-        
-        except Exception as e:
-            # If prediction fails, return empty alerts
-            pass
+        except Exception:
+            predictions = _build_fallback_forecast(ehr_records, hospital.total_beds, 7)
+    else:
+        predictions = _build_fallback_forecast(ehr_records, hospital.total_beds, 7)
+
+    # Check for high occupancy days
+    for pred in predictions:
+        predicted_occ = _clamp_occupancy(pred['predicted_occupancy'], hospital.total_beds)
+        utilization = _calculate_utilization(predicted_occ, hospital.total_beds)
+        date_str = pred['date'].isoformat() if hasattr(pred['date'], 'isoformat') else str(pred['date'])
+
+        # Create alerts for medium and high risk levels
+        if utilization >= 85:
+            has_high_risk = True
+            alerts.append(AvailabilityAlert(
+                alert_type="high_occupancy",
+                message=f"Critical occupancy expected on {date_str} ({utilization:.0f}%). Long wait times likely. Consider visiting an alternate hospital or a different day.",
+                severity="critical",
+                date=date_str
+            ))
+        elif utilization >= 70:
+            alerts.append(AvailabilityAlert(
+                alert_type="capacity_warning",
+                message=f"Moderate occupancy expected on {date_str} ({utilization:.0f}%). May experience longer wait times.",
+                severity="warning",
+                date=date_str
+            ))
     
     # Get alternate hospitals if there are high risk alerts
     alternate_hospitals = []
@@ -402,7 +479,8 @@ async def get_hospital_alerts(
             ).order_by(desc(EHRRecord.date)).first()
             
             if latest_record:
-                alt_utilization = (latest_record.occupied_beds / alt_hospital.total_beds) * 100
+                alt_occupied = _clamp_occupancy(latest_record.occupied_beds, alt_hospital.total_beds)
+                alt_utilization = _calculate_utilization(alt_occupied, alt_hospital.total_beds)
                 # Only recommend hospitals with better availability (< 70%)
                 if alt_utilization < 70:
                     alternate_hospitals.append(PublicHospitalInfo(

@@ -92,31 +92,57 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     
     Validates email and password, then returns token with user role.
     """
-    # Find user
-    user = db.query(User).filter(User.email == credentials.email).first()
-    
-    if not user or not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+    try:
+        # Find user
+        user = db.query(User).filter(User.email == credentials.email).first()
+        
+        if not user:
+            print(f"User not found: {credentials.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+        
+        print(f"User found: {user.email}, role: {user.role}")
+        
+        # Verify password
+        from app.services.auth_service import verify_password
+        if not verify_password(credentials.password, user.hashed_password):
+            print("Password verification failed")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+        
+        print("Password verification successful")
+        
+        # Create access token
+        access_token = create_access_token(data={
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role.value,
+            "hospital_id": user.hospital_id
+        })
+        
+        print("Token created successfully")
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            role=user.role,
+            user_id=user.id,
+            name=user.name,
+            hospital_id=user.hospital_id
         )
     
-    # Create access token
-    access_token = create_access_token(data={
-        "user_id": user.id,
-        "email": user.email,
-        "role": user.role.value,
-        "hospital_id": user.hospital_id
-    })
-    
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        role=user.role,
-        user_id=user.id,
-        name=user.name,
-        hospital_id=user.hospital_id
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during login"
+        )
 
 
 @router.get("/me", response_model=UserResponse)

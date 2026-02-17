@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
-from app.database import engine, Base
+from app.database import init_db
 from app.routers import hospitals, ehr, predictions, auth, public
 
 # Load environment variables
@@ -23,6 +23,9 @@ load_dotenv()
 # Import all models to ensure they're registered with SQLAlchemy
 from app.models.hospital import Hospital, EHRRecord
 from app.models.user import User
+
+# Initialize database
+init_db()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -49,7 +52,9 @@ if "localhost" in FRONTEND_URL:
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:54128",
+        "http://localhost:54128"
     ])
 
 # Configure CORS

@@ -32,14 +32,22 @@ const Login = () => {
       return;
     }
 
-    const toastId = toast.loading('Signing in...');
+    // Add demo credentials hint
+    if (email === 'admin@hospital.com' && password === 'password') {
+      toast.loading('Signing in as Admin...', { id: 'login' });
+    } else if (email === 'patient@example.com' && password === 'password') {
+      toast.loading('Signing in as Patient...', { id: 'login' });
+    } else {
+      toast.loading('Signing in...', { id: 'login' });
+    }
+
     const result = await login(email, password);
     
     if (!result.success) {
-      toast.error(result.error || 'Login failed', { id: toastId });
+      toast.error(result.error || 'Login failed', { id: 'login' });
       setError(result.error || 'Login failed. Please try again.');
     } else {
-      toast.success('Login successful!', { id: toastId });
+      toast.success('Login successful!', { id: 'login' });
     }
     // Navigation handled in AuthContext based on role
     
@@ -127,6 +135,13 @@ const Login = () => {
             <p className="text-xs text-gray-500 text-center">
               Hospital Admin or Patient Login
             </p>
+            <div className="mt-3 p-3 bg-sky-50 rounded-lg">
+              <p className="text-xs text-sky-700 font-semibold text-center mb-2">Demo Credentials:</p>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div><span className="font-semibold">Admin:</span> admin@hospital.com / password</div>
+                <div><span className="font-semibold">Patient:</span> patient@example.com / password</div>
+              </div>
+            </div>
           </div>
         </div>
 

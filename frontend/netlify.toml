@@ -9,6 +9,12 @@
   force = true
 
 [[redirects]]
+  from = "/backend/*"
+  to = "https://backend-api-production-bf71.up.railway.app/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

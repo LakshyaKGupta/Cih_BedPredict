@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Hospital, MapPin, Bed, Heart, Plus, Search, Edit2, Trash2, X, Eye, Activity, Wifi, WifiOff, Settings, Zap, Clock } from 'lucide-react';
-import { getHospitals, getDashboard, createHospital } from '../services/api';
+import { getHospitals, getDashboard, createHospital, updateHospital, getPredictions, syncHospitalData, updateHospitalApiConfig } from '../services/api';
 import toast from 'react-hot-toast';
 
 const Hospitals = () => {
@@ -116,12 +116,6 @@ const Hospitals = () => {
     const updateToast = toast.loading(`Updating ${selectedHospital.hospital_name}...`);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      
-      if (!token) {
-        throw new Error('Please login to update hospitals');
-      }
-      
       const hospitalData = {
         hospital_name: formData.hospital_name.trim(),
         location: formData.location.trim(),
@@ -129,37 +123,15 @@ const Hospitals = () => {
         icu_beds: parseInt(formData.icu_beds)
       };
 
-      const response = await fetch(`http://localhost:8000/api/hospitals/${selectedHospital.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(hospitalData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to update hospital');
-      }
+      await updateHospital(selectedHospital.id, hospitalData);
       
       toast.success('✅ Hospital updated successfully!', { id: updateToast });
       
       // Regenerate predictions for updated hospital
       try {
         const predictionToast = toast.loading('Regenerating predictions...');
-        const predResponse = await fetch(`http://localhost:8000/api/predict/${selectedHospital.id}?days=7`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (predResponse.ok) {
-          toast.success('✅ Predictions updated!', { id: predictionToast });
-        } else {
-          toast.dismiss(predictionToast);
-        }
+        await getPredictions(selectedHospital.id, 7);
+        toast.success('✅ Predictions updated!', { id: predictionToast });
       } catch (predError) {
         console.error('Failed to regenerate predictions:', predError);
       }
@@ -216,20 +188,7 @@ const Hospitals = () => {
     const syncToast = toast.loading(`Syncing data for ${hospital.hospital_name}...`);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:8000/api/hospitals/${hospital.id}/sync`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Sync failed');
-      }
-
-      const result = await response.json();
+      const result = await syncHospitalData(hospital.id);
       toast.success(`✅ ${result.message} (${result.records_synced} records)`, { id: syncToast });
       await loadHospitals();
     } catch (error) {
@@ -253,20 +212,7 @@ const Hospitals = () => {
     const saveToast = toast.loading('Saving API configuration...');
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:8000/api/hospitals/${selectedHospital.id}/api-config`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(apiConfig)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to save configuration');
-      }
+      await updateHospitalApiConfig(selectedHospital.id, apiConfig);
 
       toast.success('✅ API configuration saved successfully!', { id: saveToast });
       setShowAPIModal(false);

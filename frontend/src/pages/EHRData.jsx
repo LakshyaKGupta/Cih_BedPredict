@@ -82,6 +82,25 @@ const EHRData = () => {
     return { totalAdmissions, totalDischarges, avgOccupancy };
   };
 
+  const downloadCsv = (content, filename) => {
+    try {
+      const csvWithBom = `\uFEFF${content}`;
+      const blob = new Blob([csvWithBom], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download CSV:', error);
+      alert('Download failed. Please try again.');
+    }
+  };
+
   const handleExport = () => {
     if (records.length === 0) {
       alert('No data to export');
@@ -105,16 +124,9 @@ const EHRData = () => {
     });
 
     const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
     const hospitalName = hospitals.find(h => h.id === selectedHospitalId)?.hospital_name || 'hospital';
-    link.download = `${hospitalName.replace(/\s+/g, '_')}_EHR_data_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    const filename = `${hospitalName.replace(/\s+/g, '_')}_EHR_data_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadCsv(csvContent, filename);
   };
 
   const handleFileSelect = (event) => {
@@ -134,16 +146,7 @@ const EHRData = () => {
       '2026-02-13,30,26,176,20,12'
     ];
     const csvContent = [templateHeaders, ...templateRows].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'ehr_import_template.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    downloadCsv(csvContent, 'ehr_import_template.csv');
   };
 
   const parseCSV = (text) => {

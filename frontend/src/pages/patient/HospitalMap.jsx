@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { MapPin, Navigation, Bed, Activity, Phone, Clock } from 'lucide-react';
-import axios from 'axios';
+import { getPublicHospitals, getPublicAvailability } from '../../services/api';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -92,22 +92,25 @@ const HospitalMap = () => {
   const loadHospitals = async () => {
     setLoading(true);
     try {
-      console.log('Fetching hospitals from /api/public/hospitals...');
-      // Use public API endpoint
-      const response = await axios.get('/api/public/hospitals');
-      const data = response.data;
+      console.log('Fetching hospitals from public API...');
+      const data = await getPublicHospitals();
       console.log('Received', data.length, 'hospitals:', data);
-      
-      // Add coordinates and occupancy to hospitals
-      const hospitalsWithCoords = data.map((hospital) => {
+
+      const hospitalsWithCoords = await Promise.all(data.map(async (hospital) => {
         const city = Object.keys(INDIAN_CITIES).find(c => 
           hospital.location.includes(c)
         );
         const coords = city ? INDIAN_CITIES[city] : { lat: 20.5937, lng: 78.9629 };
-        
-        // Use mock occupancy for now (will be replaced with real-time data)
-        const occupancy = 50 + Math.floor(Math.random() * 40); // 50-90%
-        const availableBeds = Math.floor(hospital.total_beds * (100 - occupancy) / 100);
+
+        let availability = null;
+        try {
+          availability = await getPublicAvailability(hospital.id);
+        } catch (availabilityError) {
+          console.error(`Failed to load availability for hospital ${hospital.id}:`, availabilityError);
+        }
+
+        const occupancy = availability?.utilization_percentage ?? 0;
+        const availableBeds = availability?.current_available ?? hospital.total_beds;
         
         console.log(`Hospital: ${hospital.hospital_name}, City: ${city}, Coords: ${coords.lat}, ${coords.lng}`);
         
@@ -118,7 +121,7 @@ const HospitalMap = () => {
           currentOccupancy: occupancy,
           availableBeds: availableBeds
         };
-      });
+      }));
       
       setHospitals(hospitalsWithCoords);
       console.log('Loaded hospitals with coords:', hospitalsWithCoords);

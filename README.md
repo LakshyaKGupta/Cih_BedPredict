@@ -181,7 +181,7 @@ Recommended PR checklist item:
 - "README updated if setup/API/deployment changed."
 
 ## Troubleshooting
-- `400` on forecast endpoint: hospital likely has insufficient EHR history.
+- Forecast endpoint returns empty or fallback values: ingest recent EHR records for higher-accuracy Prophet predictions.
 - Frontend cannot reach backend: verify `VITE_API_URL` and backend CORS `FRONTEND_URL`.
 - Empty dashboard: seed data or ingest recent EHR records.
 - Auth failures: verify `SECRET_KEY`, token expiry settings, and user role.

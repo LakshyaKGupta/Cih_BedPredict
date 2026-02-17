@@ -43,11 +43,12 @@ def startup_event():
 # To initialize: run `python -c "from app.database import engine, Base; from app.models import *; Base.metadata.create_all(bind=engine)"`
 
 # Get allowed origins from environment
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-allowed_origins = [FRONTEND_URL]
+# Supports comma-separated URLs for multi-environment deployments.
+frontend_urls_raw = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [url.strip() for url in frontend_urls_raw.split(",") if url.strip()]
 
 # In development, allow localhost variants
-if "localhost" in FRONTEND_URL:
+if any(("localhost" in origin or "127.0.0.1" in origin) for origin in allowed_origins):
     allowed_origins.extend([
         "http://localhost:3000",
         "http://localhost:5173",
@@ -56,6 +57,8 @@ if "localhost" in FRONTEND_URL:
         "http://127.0.0.1:54128",
         "http://localhost:54128"
     ])
+
+allowed_origins = list(dict.fromkeys(allowed_origins))
 
 # Configure CORS
 app.add_middleware(

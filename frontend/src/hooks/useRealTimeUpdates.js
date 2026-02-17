@@ -7,6 +7,7 @@
 
 import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import { getPublicAvailability } from '../services/api';
 
 export const useRealTimeUpdates = (hospitalId, onUpdate, interval = 30000) => {
   const intervalRef = useRef(null);
@@ -17,8 +18,7 @@ export const useRealTimeUpdates = (hospitalId, onUpdate, interval = 30000) => {
 
     const checkForUpdates = async () => {
       try {
-        const response = await fetch(`/api/public/availability/${hospitalId}`);
-        const newData = await response.json();
+        const newData = await getPublicAvailability(hospitalId);
 
         // Compare with previous data
         if (previousDataRef.current) {

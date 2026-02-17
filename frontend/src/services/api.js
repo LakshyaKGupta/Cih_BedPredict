@@ -88,6 +88,30 @@ export const createHospital = async (hospitalData) => {
   return response.data;
 };
 
+/**
+ * Update hospital details
+ */
+export const updateHospital = async (hospitalId, hospitalData) => {
+  const response = await api.put(`/hospitals/${hospitalId}`, hospitalData);
+  return response.data;
+};
+
+/**
+ * Update hospital API integration configuration
+ */
+export const updateHospitalApiConfig = async (hospitalId, config) => {
+  const response = await api.put(`/hospitals/${hospitalId}/api-config`, config);
+  return response.data;
+};
+
+/**
+ * Trigger manual EHR sync for hospital
+ */
+export const syncHospitalData = async (hospitalId) => {
+  const response = await api.post(`/hospitals/${hospitalId}/sync`);
+  return response.data;
+};
+
 // ============== EHR APIs ==============
 
 /**
